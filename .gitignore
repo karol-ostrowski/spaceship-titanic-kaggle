@@ -2,3 +2,4 @@ mlruns
 myenv
 __pycache__
 mlartifacts
+.ipynb_checkpoints
