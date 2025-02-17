@@ -80,9 +80,9 @@ def log(params, # layer_sizes, lr, epochs
     
     """
     notes:
-    - there is a way to specify the dataset in a better way
+    - there is an option to specify the dataset in a better way
     - seems like "with mlflow.start_run()" measures time, so the training
-      should be instead done inside it to automatically get the time taken
+      maybe should be instead done inside it to automatically get the time taken
     """
 
 
