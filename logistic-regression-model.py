@@ -42,7 +42,6 @@ if __name__ == "__main__":
         n_jobs=-1
     )
 
-
     random_search.fit(X_train, y_train)
 
     best_model = random_search.best_estimator_
