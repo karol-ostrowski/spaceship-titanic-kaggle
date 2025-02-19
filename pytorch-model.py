@@ -70,7 +70,7 @@ def log(params, # layer_sizes, lr, epochs
         dataset_version):
 
     mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
-    mlflow.set_experiment("spaceship-titanic-kaggle")
+    mlflow.set_experiment("spaceship-titanic-kaggle v2")
 
     with mlflow.start_run():
         mlflow.set_tag("dataset", dataset_version)
@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     device = "cpu" # sth wrong with my gpu, device hardcoded to cpu
 
-    train_data = pd.read_csv("dataset_02_train.csv")
+    train_data = pd.read_csv("dataset_03_train.csv")
     train_data = train_data.astype({
         "CryoSleep"     : "int8",
         "VIP"           : "int8",
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                    X_test=X_test,
                    y_train=y_train,
                    y_test=y_test,
-                   layer_sizes=[10, 10],
+                   layer_sizes=[8, 8],
                    lr=0.001,
                    epochs=1000,
-                   dataset_version="02")
+                   dataset_version="03")

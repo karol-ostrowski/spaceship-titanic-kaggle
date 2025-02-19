@@ -7,7 +7,7 @@ from scipy.stats import loguniform
 
 if __name__ == "__main__":
 
-    train_data = pd.read_csv("dataset_02_train.csv")
+    train_data = pd.read_csv("dataset_03_train.csv")
 
     X = train_data.drop(columns=["Transported"]).values
     y = train_data["Transported"].values
@@ -18,7 +18,7 @@ if __name__ == "__main__":
                                                         random_state=9)
 
     mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
-    mlflow.set_experiment("spaceship-titanic-kaggle")
+    mlflow.set_experiment("spaceship-titanic-kaggle v2")
 
     model = LogisticRegression(max_iter=5000)
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     print(f"Model accuracy: {test_acc*100:.2f}%")
 
     with mlflow.start_run():
-        mlflow.set_tag("dataset", "02")
+        mlflow.set_tag("dataset", "03")
         mlflow.set_tag("model", "lr")
         mlflow.log_params(best_params)
         mlflow.log_metric("accuracy", test_acc)
