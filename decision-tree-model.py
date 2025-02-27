@@ -16,7 +16,9 @@ if __name__ == "__main__":
         run_name = None
 
     data = pd.read_csv(f"dataset_{dataset_num}_train.csv")
-    data_for_logging = mlflow.data.from_pandas(data, f"dataset_{dataset_num}_train.csv")
+    data_for_logging = mlflow.data.from_pandas(df=data,
+                                               source=f"dataset_{dataset_num}_train.csv",
+                                               name=f"dataset_{dataset_num}_train")
 
     X = data.drop(columns=["Transported"]).values
     y = data["Transported"].values
