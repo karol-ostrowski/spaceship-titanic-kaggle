@@ -1,9 +1,13 @@
 import torch
 from torch import nn
 import pandas as pd
+import numpy as np
 import mlflow
+import argparse
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from mlflow.models.signature import ModelSignature
+from mlflow.types.schema import Schema, TensorSpec
 
 class binary_classifier(nn.Module):
     def __init__(self, input_size, layer_sizes):
@@ -24,13 +28,13 @@ class binary_classifier(nn.Module):
         return self.model(x)
 
 def train_test(model,
-                  epochs,
-                  loss_fn,
-                  optimizer,
-                  X_train,
-                  y_train,
-                  X_test,
-                  y_test):
+               epochs,
+               loss_fn,
+               optimizer,
+               X_train,
+               y_train,
+               X_test,
+               y_test):
     
     model.to(device)
     X_train, X_test = X_train.to(device), X_test.to(device)
@@ -64,74 +68,36 @@ def train_test(model,
     
     return test_acc
 
-def log(params, # layer_sizes, lr, epochs
-        test_acc,
-        model,
-        dataset_version):
-
-    mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
-    mlflow.set_experiment("spaceship-titanic-kaggle v2")
-
-    with mlflow.start_run():
-        mlflow.set_tag("dataset", dataset_version)
-        mlflow.log_params(params)
-        mlflow.log_metric("accuracy", test_acc)
-        mlflow.pytorch.log_model(model, "torch-model")
-    
-    """
-    notes:
-    - there is an option to specify the dataset in a better way
-    - seems like "with mlflow.start_run()" measures time, so the training
-      maybe should be instead done inside it to automatically get the time taken
-    """
-
-
-def train_test_log(X_train,
-                   X_test,
-                   y_train,
-                   y_test,
-                   layer_sizes=[10, 10],
-                   loss_fn=nn.BCEWithLogitsLoss(),
-                   lr=0.01,
-                   epochs=10,
-                   dataset_version="xx"):
-
-    model = binary_classifier(X_train.shape[1], layer_sizes)
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
-
-    test_acc = train_test(model=model,
-                          epochs=epochs,
-                          loss_fn=loss_fn,
-                          optimizer=optimizer,
-                          X_train=X_train,
-                          y_train=y_train,
-                          X_test=X_test,
-                          y_test=y_test)
-
-    params = {
-        "layer_sizes" : layer_sizes,
-        "lr" : lr,
-        "epochs" : epochs
-    }
-
-    log(params=params,
-        test_acc=test_acc,
-        model=model,
-        dataset_version=dataset_version)
-
 if __name__ == "__main__":
 
-    device = "cpu" # sth wrong with my gpu, device hardcoded to cpu
+    parser = argparse.ArgumentParser(description="script creates a pytorch model based on the given parameters, logs it to the mlflow server")
+    parser.add_argument("dataset_number", type=str, help="the version of the training dataset, file storing the dataset has to adhere to the naming scheme")
+    parser.add_argument("layer_sizes", type=str, help="layer sizes as a string, e.g. 7,7,7 -> 3 layers of sizes equal to 7")
+    parser.add_argument("learning_rate", type=float, help="learning rate of the model")
+    parser.add_argument("epochs_num", type=int, help="the number of epochs for the training process")
+    parser.add_argument("experiment_name", type=str, help="mlflow experiment name")
+    parser.add_argument("--run_name", type=str, help="optional argument for setting a custom mlflow run name", required=False)
 
-    train_data = pd.read_csv("dataset_03_train.csv")
-    train_data = train_data.astype({
+    args = parser.parse_args()
+
+    dataset_num = args.dataset_number
+    experiment_name = args.experiment_name
+    layer_sizes = [int(num) for num in args.layer_sizes.split(",")]
+
+    data = pd.read_csv(f"dataset_{dataset_num}_train.csv")
+    data_for_logging = mlflow.data.from_pandas(df=data,
+                                               name=f"dataset_{dataset_num}_train")
+    data = data.astype({
         "CryoSleep"     : "int8",
         "VIP"           : "int8",
         "Transported"   : "int8"
     })
-    X = train_data.drop(columns=["Transported"]).values
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    X = data.drop(columns=["Transported"]).values
     X = torch.tensor(X, dtype=torch.float32)
-    y = train_data["Transported"].values
+    y = data["Transported"].values
     y = torch.tensor(y, dtype=torch.float32)
 
     X_train, X_test, y_train, y_test = train_test_split(X,
@@ -139,12 +105,37 @@ if __name__ == "__main__":
                                                         test_size=0.2,
                                                         random_state=9)
     
+    mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
+    mlflow.set_experiment(args.experiment_name)
     
-    train_test_log(X_train=X_train,
-                   X_test=X_test,
-                   y_train=y_train,
-                   y_test=y_test,
-                   layer_sizes=[8, 8],
-                   lr=0.001,
-                   epochs=1000,
-                   dataset_version="03")
+    model = binary_classifier(X_train.shape[1], layer_sizes)
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=args.learning_rate)
+    loss_fn = nn.BCEWithLogitsLoss()
+
+    params = {
+        "layer_sizes" : layer_sizes,
+        "learning_rate" : args.learning_rate,
+        "epochs" : args.epochs_num,
+        "optimizer" : type(optimizer).__name__,
+        "loss_fn" : type(loss_fn).__name__
+    }
+
+    with mlflow.start_run(run_name=args.run_name):
+
+        test_acc = train_test(model=model,
+                          epochs=args.epochs_num,
+                          loss_fn=loss_fn,
+                          optimizer=optimizer,
+                          X_train=X_train,
+                          y_train=y_train,
+                          X_test=X_test,
+                          y_test=y_test)
+        print(f"Model accuracy: {test_acc*100:.2f}%")
+        mlflow.log_artifact(f"dataset_{dataset_num}_train.csv")
+        mlflow.set_tag("model", "torch")
+        mlflow.log_params(params)
+        mlflow.log_metric("accuracy", test_acc)
+        mlflow.log_input(data_for_logging, "training")
+        input_schema = Schema([TensorSpec(np.dtype('float32'), (-1, 31))])
+        signature = ModelSignature(inputs=input_schema)
+        mlflow.pytorch.log_model(model, "pytorch", signature=signature, input_example=X_test[:1])
