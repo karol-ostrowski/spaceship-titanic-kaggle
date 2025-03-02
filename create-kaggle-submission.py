@@ -16,22 +16,36 @@ if __name__ == "__main__":
     test_ids = pd.read_csv("./kaggle-data/test.csv")
 
     mlflow.set_tracking_uri("http://localhost:8080")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    model = mlflow.pyfunc.load_model(args.model_uri)
-    if model.metadata.flavors["python_function"]["loader_module"] == "mlflow.pytorch":
+    if args.model_uri.split("/")[-1] == "pytorch":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = mlflow.pytorch.load_model(args.model_uri)
         test_data = test_data.astype({
-           "CryoSleep"     : "int8",
-           "VIP"           : "int8"
+        "CryoSleep"     : "int8",
+        "VIP"           : "int8"
         })
         test_data = test_data.astype('float32')
         test_data = torch.tensor(test_data.values, dtype=torch.float32)
+
+        model.to(device)
+        model.eval()
+        with torch.no_grad():
+            output = model(test_data).squeeze()
+        
+        min_val = output.min()
+        max_val = output.max()
+        scaled_output = (output - min_val) / (max_val - min_val)
+        bool_output = scaled_output > scaled_output.median()
+        pred_col = pd.Series(bool_output)
+
+    else:
+        model = mlflow.pyfunc.load_model(args.model_uri)
+        pred_col = pd.Series(model.predict(test_data).flatten()).astype(bool)
 
     parent_dir = os.path.dirname(__file__)
     number_of_submissions = len([file for file in os.scandir(parent_dir) \
                                 if file.name[:18] == "kaggle-submission-"])
 
-    pred_col = pd.Series(model.predict(test_data).flatten()).astype(bool)
     predicted_df = pd.concat([test_ids["PassengerId"], pred_col], axis=1)
     predicted_df = predicted_df.rename(columns={0 : "Transported"})
     predicted_df.to_csv(f"kaggle-submission-{number_of_submissions + 1}.csv", header=True, index=False)

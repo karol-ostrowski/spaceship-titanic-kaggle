@@ -1,13 +1,11 @@
 import torch
 from torch import nn
 import pandas as pd
-import numpy as np
 import mlflow
 import argparse
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from mlflow.models.signature import ModelSignature
-from mlflow.types.schema import Schema, TensorSpec
 
 class binary_classifier(nn.Module):
     def __init__(self, input_size, layer_sizes):
@@ -136,6 +134,4 @@ if __name__ == "__main__":
         mlflow.log_params(params)
         mlflow.log_metric("accuracy", test_acc)
         mlflow.log_input(data_for_logging, "training")
-        input_schema = Schema([TensorSpec(np.dtype('float32'), (-1, 31))])
-        signature = ModelSignature(inputs=input_schema)
-        mlflow.pytorch.log_model(model, "pytorch", signature=signature, input_example=X_test[:1])
+        mlflow.pytorch.log_model(model, "pytorch", input_example=X_test[0].cpu().numpy().astype(np.float32))
